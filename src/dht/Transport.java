@@ -32,8 +32,8 @@ public class Transport implements Protocol {
 
     //envoi d'un message: il suffit de l'ajouter a la file d'evenements
     public void send(Node src, Node dest, Object msg, int pid) {
-	long delay = getLatency(src,dest);
-	EDSimulator.add(delay, msg, dest, pid);
+        long delay = getLatency(src,dest);
+        EDSimulator.add(delay, msg, dest, pid);
     }
     
     
@@ -41,7 +41,6 @@ public class Transport implements Protocol {
     public long getLatency(Node src, Node dest) {
 	return (range==1?min:min + CommonState.r.nextLong(range));
     }
-
 
 }
 

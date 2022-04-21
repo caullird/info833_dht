@@ -8,8 +8,6 @@ all:
 run:
 	java -classpath src:jep-2.3.0.jar:djep-1.0.0.jar peersim/Simulator config_file.cfg
 
-	"-javaagent:C:\Program Files\JetBrains\IntelliJ IDEA 2021.3\lib\idea_rt.jar=55128:C:\Program Files\JetBrains\IntelliJ IDEA 2021.3\bin" config_file.cfg
-
 clean:
 	rm -f `find -name "*.class"`
 doc:

@@ -4,7 +4,7 @@ MJ 07/07/09
   (in order to resolve the underspecified classnames in the config). I added
   a temporary fix, which stops the directory walk after a (very large) maximal
   number of visited directories. Now peersim does not hang, but either fails
-  with a clear message, or executes the simulation. Note that jar files
+  with a clear packet, or executes the simulation. Note that jar files
   are not affected, and they can still be arbitrarily large. When one needs
   an excessive number of packages (thousands) then a jar file is a better
   idea.
@@ -31,7 +31,7 @@ AM 31/05/09
 - Solved a bug in peersim.edsim.EDSimulator
   ClassCastException generated inside a user Control object
   were caught by the EDSimulator and a misleading error
-  message was printed.
+  packet was printed.
 
 AM 30/04/09
 - Solved a bug in ConfigContainer.  
@@ -148,8 +148,8 @@ MJ 04/11/07
   inconsistency between the documentation and the behavior of the method.
   Documentation (and therefore the interface specification) is now changed,
   consistent with the new behavior. (Also simplified the implementation)
-- Added a sensible error message when an event has null destination
-  (uninformative error message detected by sourceforge user "pemf")
+- Added a sensible error packet when an event has null destination
+  (uninformative error packet detected by sourceforge user "pemf")
 
 SV 15/07/2007
 - Corrected small bug in GraphFactory.wireRingLattice giving wrong number of
@@ -267,7 +267,7 @@ AM 28/10/2006
 - Added a new tool to check whether a config file contains errors
   or not. It works as follows: it initializes a network and the
   associated controls in the same way as the PeerSim simulator,
-  but terminates before actually starting the simulation. All message
+  but terminates before actually starting the simulation. All packet
   errors are reported.
 - Separated the container task of Configuration from the its goal
   of being a unique central point for accessing configuration. 
@@ -492,7 +492,7 @@ MJ 30/09/05
 - cleaned up the Configuration package. Note that the behavior of getInstance
   is changed; the only consequence is that now protocols MUST implement
   the (String,Object) constructor (so far (String) was also accepted).
-  In any case if your classes don't conform, you'll get a clean error message,
+  In any case if your classes don't conform, you'll get a clean error packet,
   and you can fix them in a few seconds (by adding an Object par).
 
 SV 30/09/05
@@ -584,7 +584,7 @@ MJ 16/08/05
 MJ 15/08/05
 - Added MethodInvoker, a Control that can invoke a "void method()" type of
   method
-- Some minor cleanup on error message printing
+- Some minor cleanup on error packet printing
 
 MJ 10/08/05
 I added a number of changes, some of them will break existing config files:
@@ -930,7 +930,7 @@ AM 25/11/2004
   with both ed and cd simulations.
 
 JM 17/11/2004
-- Small non-critical changes like docs, message texts, formatting, etc, plus
+- Small non-critical changes like docs, packet texts, formatting, etc, plus
   changes step to cstep in DaemonProtocol to avoid conflict with scheduling
 
 GJ 11/11/2004

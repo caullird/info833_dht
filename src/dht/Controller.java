@@ -21,15 +21,16 @@ public class Controller implements Control {
             final int index = i;
             this.steps.add(() -> wakeUpNode(index));
         }
-
-        // Afficher le ring
         this.steps.add(this::displayRing);
 
+        // Suppresion d'un noeud
+        this.steps.add(() -> disconnectRandomNode());
+        this.steps.add(this::displayRing);
 
-        /*// send messages
+        // send messages
         this.steps.add(() -> sendMessageRandom("Hello world"));
         this.steps.add(() -> sendMessageRandom("Hello universe"));
-        this.steps.add(() -> sendMessageRandom("Hello cosmos"));*/
+        this.steps.add(() -> sendMessageRandom("Hello cosmos"));
     }
 
     @Override
@@ -38,7 +39,6 @@ public class Controller implements Control {
         if (this.executedStep == this.steps.size()) return false;
 
         // trigger the next action
-        System.out.println(this + "Lancement de l'étape " + (this.executedStep + 1));
         this.steps.get(this.executedStep).run();
         this.executedStep++;
 
@@ -51,40 +51,42 @@ public class Controller implements Control {
         node.awake(nodeIndex);
     }
 
-    /*public void disconnectNode(int nodeIndex) {
-        System.out.println("Killing node " + nodeIndex);
-        Node node = Network.get(nodeIndex);
-        Transport transport = (Transport) node.getProtocol(Initializer.getTransportPid());
-        transport.leave();
-    }*/
+    public void disconnectRandomNode() {
+        Node randomNode = getRandomAwakenNode();
+        this.disconnectNode(randomNode.getAddress());
+    }
+
+    public void disconnectNode(int address) {
+        Node node = (Node) Network.get(address).getProtocol(Initializer.getTransportPid());
+        System.out.println(this + "Disconnect node " + node.getId());
+        node.leave();
+    }
 
     public void displayRing() {
-        Node initialNode = (Node) Network.get(0).getProtocol(Initializer.getTransportPid());
-        Node currentNode = initialNode.getRight();
+        Node startNode = Initializer.getRandomAwakenNode();
+        Node currentNode = startNode.getRight();
         List<Node> nodes = new LinkedList<>();
-        nodes.add(initialNode);
+        nodes.add(startNode);
 
-        while (currentNode != initialNode) {
+        while (currentNode != startNode) {
             nodes.add(currentNode);
             currentNode = currentNode.getRight();
         }
 
-        nodes.add(initialNode);
-
         String idsString = nodes.stream()
-                .map(node -> String.format("%s", node.getNodeId()))
+                .map(node -> String.format("%s", node.getId()))
                 .collect(Collectors.joining(" => "));
 
-        System.out.println("Final ring: " + idsString);
+        System.out.println(this + ConsoleColors.YELLOW_BOLD + "Final ring: " + idsString);
     }
 
     public void sendMessageRandom(String message) {
         Node randomSender = getRandomAwakenNode();
         Node randomTarget = getRandomAwakenNode();
 
-        System.out.println("Sending `" + message + "` from " + randomSender.getUUID() + " to " + randomTarget.getUUID());
+        System.out.println(this + "Sending `" + message + "` from " + randomSender.getId() + " to " + randomTarget.getId());
 
-        randomSender.sendMessage(((Node) randomTarget).getUUID(), message);
+        randomSender.sendMessage(randomTarget.getId(), message);
     }
 
     @Override

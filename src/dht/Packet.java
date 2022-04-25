@@ -18,25 +18,17 @@ public class Packet {
 
     private Type type;
 
-    private UUID sender;
+    private int senderId;
     private int senderAddress;
-    private UUID target;
-    private int targetAddress;
+    private int targetId;
+
     private String content;
 
-    public Packet(Type type, UUID sender, int senderAddress, UUID target, String content) {
+    public Packet(Type type, int senderId, int senderAddress, int targetId, String content) {
         this.type = type;
-        this.sender = sender;
+        this.senderId = senderId;
         this.senderAddress = senderAddress;
-        this.target = target;
-        this.content = content;
-    }
-
-    public Packet(Type type, UUID sender, int senderAddress, int targetAddress, String content) {
-        this.type = type;
-        this.sender = sender;
-        this.senderAddress = senderAddress;
-        this.targetAddress = targetAddress;
+        this.targetId = targetId;
         this.content = content;
     }
 
@@ -44,20 +36,16 @@ public class Packet {
         return type;
     }
 
-    public UUID getSender() {
-        return sender;
+    public int getSenderId() {
+        return senderId;
     }
 
     public int getSenderAddress() {
         return senderAddress;
     }
 
-    public UUID getTarget() {
-        return target;
-    }
-
-    public int getTargetAddress() {
-        return targetAddress;
+    public int getTargetId() {
+        return targetId;
     }
 
     public String getContent() {

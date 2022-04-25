@@ -20,27 +20,19 @@ public class Node implements EDProtocol {
     //identifiant de la couche courante (la couche applicative)
     private int mypid;
 
-    //le numero de noeud
-    private int nodeId;
+    //adresse de la couche transport
+    private int address;
 
     private boolean isAwaken = false;
 
-    //uuid aléatoire
-    private UUID uuid = UUID.randomUUID();
+    //id aléatoire
+    private int id = (int)(Math.random()*(1000));
 
-    /**
-     * Left node in the ring. A node with an inferior id
-     */
     private Node left = null;
-
-    /**
-     * Right node in the ring. A node with a greater id
-     */
     private Node right = null;
 
     public Node(String prefix) {
         this.prefix = prefix;
-        //initialisation des identifiants a partir du fichier de configuration
         this.transportPid = Configuration.getPid(prefix + ".transport");
         this.mypid = Configuration.getPid(prefix + ".myself");
         this.transport = null;
@@ -50,34 +42,14 @@ public class Node implements EDProtocol {
         return isAwaken;
     }
 
-    public UUID getUUID() {
-        return uuid;
-    }
-
-    public Node getLeft() {
-        return left;
-    }
-
-    public void setLeft(Node left) {
-        this.left = left;
-    }
-
-    public Node getRight() {
-        return right;
-    }
-
-    public void setRight(Node right) {
-        this.right = right;
-    }
-
     // Initialize this as the first node in the ring
-    public void awakeAsInitialNode(int nodeId) {
+    public void awakeAsInitialNode(int address) {
         if (this.isAwaken()) {
             System.out.println("The node is already awaken");
             return;
         }
 
-        this.setTransportLayer(nodeId);
+        this.setTransportLayer(address);
         this.isAwaken = true;
 
         this.left = this;
@@ -87,27 +59,44 @@ public class Node implements EDProtocol {
     }
 
     // Initialize this as the first node in the ring
-    public void awake(int nodeId) {
+    public void awake(int address) {
         if (this.isAwaken()) {
             System.out.println(this + "Already awaken");
             return;
         }
 
-        this.setTransportLayer(nodeId);
+        this.setTransportLayer(address);
 
         Node randomAwakenNode = Initializer.getRandomAwakenNode();
 
-        Packet discoveryPacket = new Packet(Type.Discovery, this.uuid, this.nodeId, randomAwakenNode.uuid, "");
+        Packet discoveryPacket = new Packet(Type.Discovery, this.id, this.address, randomAwakenNode.getId(), "");
 
         System.out.println(this + "Send Discovery Packet to " + randomAwakenNode);
         this.send(randomAwakenNode, discoveryPacket);
     }
 
+    //  Leave the ring and notify the its left and right neighbors that their respective right and left neighbor have change
+    public void leave() {
+        if(!this.isAwaken()) System.out.println("Cannot leave as the node is not part of the ring");
+
+        System.out.println(this + "Leaving the ring (notifying neighbors)");
+
+        this.isAwaken = false;
+
+        Packet switchLeftNeighborPacket = new Packet(Type.SwitchNeighbor, this.right.getId(), this.right.getAddress(), this.left.getAddress(), "RIGHT");
+        Packet switchRightNeighborPacket = new Packet(Type.SwitchNeighbor, this.left.getId(), this.left.getAddress(), this.right.getAddress(), "LEFT");
+
+        this.send(this.left, switchLeftNeighborPacket);
+        this.send(this.right, switchRightNeighborPacket);
+        this.left = null;
+        this.right = null;
+    }
+
     //liaison entre un objet de la couche applicative et un
     //objet de la couche transport situes sur le meme noeud
-    public void setTransportLayer(int nodeId) {
-        this.nodeId = nodeId;
-        this.transport = (Transport) Network.get(this.nodeId).getProtocol(this.transportPid);
+    public void setTransportLayer(int address) {
+        this.address = address;
+        this.transport = (Transport) Network.get(this.address).getProtocol(this.transportPid);
     }
 
     //methode necessaire pour la creation du reseau (qui se fait par clonage d'un prototype)
@@ -122,55 +111,59 @@ public class Node implements EDProtocol {
         if (packet.getType() == Type.Discovery) this.onDiscoverPacket(packet);
         else if (packet.getType() == Type.Welcome) this.onWelcomePacket(packet);
         else if (packet.getType() == Type.SwitchNeighbor) this.onSwitchNeighborPacket(packet);
-        // else if (event instanceof RoutablePacket) this.onRoutablePacket((RoutablePacket) packet);
+        else if (packet.getType() == Type.Message || packet.getType() == Type.UndeliverableRoutable) this.route(packet);
         else throw new IllegalArgumentException("Event not recognized: " + event);
     }
 
-    private void sendWelcomePacket(int address, Node left, Node right) {
-        Node node = addressToNode(address);
-        Packet welcomePacket = new Packet(Type.Welcome, this.uuid, this.nodeId, address, left.mypid + " " + right.mypid);
+    private void sendWelcomePacket(Node node, Node left, Node right) {
+        Packet welcomePacket = new Packet(
+                Type.Welcome, this.getId(),
+                this.getAddress(),
+                node.getId(),
+                left.getAddress() + " " + right.getAddress());
         System.out.println(this + "Send Welcome Packet to " + node + " (left: " + left + ", right: " + right + ")");
         this.send(node, welcomePacket);
     }
 
     private void onDiscoverPacket(Packet packet) {
-        Node newNode = addressToNode(packet.getSenderAddress());
+        Node newNode = Utils.addressToNode(packet.getSenderAddress());
         System.out.println(this + "Receive " + packet.getType() + " from " + newNode);
 
         // are we the unique node in the ring ?
         if (this.left.equals(this.right) && this.left.equals(this)) {
-            this.sendWelcomePacket(packet.getSenderAddress(), this, this);
+            this.sendWelcomePacket(newNode, this, this);
             this.right = newNode;
             this.left = newNode;
+            System.out.println(this + "New Neighbor " + "(left: " + newNode + "- right: " + newNode + ")");
         }
-        else if (packet.getSender().compareTo(this.uuid) > 0) { // packet.nodeId > this.id
+        else if (packet.getSenderId() > this.getId()) { // packet.sender > this
             // the sender has a greater id than the local node
             // should be on the right
-            UUID rightId = this.right.uuid;
+            int rightId = this.right.getId();
 
             if (
                 // the node is inferior to our right node
-                    packet.getSender().compareTo(rightId) < 0 // packet.nodeId < rightId
+                    packet.getSenderId() < rightId // packet.nodeId < rightId
                             // Our right node is inferior than the current node. We are the last node in the ring and the new node
                             // is greater than the local node. We add the node at the end of the ring
-                            || this.uuid.compareTo(rightId) > 0 // this.id > rightId
+                            || this.getId()> rightId // this.id > rightId
             ) {
                 // the node should be placed between the right and the local node
 
                 // send back neighbors addresses to the node that joined the cluster
-                System.out.println(this + "Welcoming node " + packet.getSenderAddress() + " as my new right node");
+                System.out.println(this + "Welcoming " + newNode + "as my new right node");
 
-                this.sendWelcomePacket(packet.getSenderAddress(), this, this.right);
+                this.sendWelcomePacket(newNode, this, this.right);
 
                 // Notify the right node that his left node has changed
-                System.out.println(this + "Notifying node " + this.right.mypid + " of their new left node");
-                Packet switchNeighborPacket = new Packet(Type.SwitchNeighbor, packet.getSender(), packet.getSenderAddress(), this.right.mypid, "LEFT");
+                System.out.println(this + "Notifying node " + this.right + "of their new left node");
+                Packet switchNeighborPacket = new Packet(Type.SwitchNeighbor, packet.getSenderId(), packet.getSenderAddress(), this.right.address, "LEFT");
                 this.send(this.right, switchNeighborPacket);
                 this.right = newNode;
             } else {
                 // the node should be placed after the right node
                 // we follow the packet to the next node in the ring
-                System.out.println(this + "Following discovery of " + packet.getSenderAddress() + " to " + this.right.nodeId);
+                System.out.println(this + "Following discovery of " + packet.getSenderAddress() + " to " + this.right.address);
                 this.send(this.right, packet);
             }
         }
@@ -178,30 +171,30 @@ public class Node implements EDProtocol {
         else {
             // the sender has an inferior id than the local node
             // should be on the left
-            UUID leftId = this.left.uuid;
+            int leftId = this.left.getId();
 
             if(
                 // the node is greater than the left node
-                    packet.getSender().compareTo(leftId) > 0 // packet.nodeId > leftId
+                    packet.getSenderId() > leftId // packet.nodeId > leftId
                             // Our left node is greater than the current node. We are the first node in the ring and the new node
                             // is less than the local node. We add the node at the beginning of the ring
-                            || this.uuid.compareTo(leftId) < 0 // this.id < leftId
+                            || this.getId() < leftId // this.id < leftId
             ) {
                 // the node should be placed between the left and the local node
 
                 // send back neighbors addresses to the node that joined the cluster
-                System.out.println(this + "Welcoming node " + packet.getSenderAddress() + " as my new left node");
-                this.sendWelcomePacket(packet.getSenderAddress(), this.left, this);
+                System.out.println(this + "Welcoming " + newNode + "as my new left node");
+                this.sendWelcomePacket(newNode, this.left, this);
 
                 // Notify the left node that his right node has changed
-                System.out.println(this + "Notifying node " + this.left.mypid + " of their new right node");
-                Packet switchNeighborPacket = new Packet(Type.SwitchNeighbor, packet.getSender(), packet.getSenderAddress(), this.left.mypid, "RIGHT");
+                System.out.println(this + "Notifying node " + this.left + "of their new right node");
+                Packet switchNeighborPacket = new Packet(Type.SwitchNeighbor, packet.getSenderId(), packet.getSenderAddress(), this.left.address, "RIGHT");
                 this.send(this.left, switchNeighborPacket);
                 this.left = newNode;
             } else {
                 // the node should be placed after the left node
                 // we follow the packet to the next node in the ring
-                System.out.println(this + "Following discovery of " + packet.getSenderAddress() + " to " + this.left.nodeId);
+                System.out.println(this + "Following discovery of " + packet.getSenderAddress() + " to " + this.left.address);
                 this.send(this.left, packet);
             }
         }
@@ -213,10 +206,12 @@ public class Node implements EDProtocol {
      */
     private void onWelcomePacket(Packet packet) {
         String[] addresses = packet.getContent().split("\\s");
-        this.left = addressToNode(Integer.parseInt(addresses[0]));
-        this.right = addressToNode(Integer.parseInt(addresses[1]));
+        this.left = Utils.addressToNode(Integer.parseInt(addresses[0]));
+        this.right = Utils.addressToNode(Integer.parseInt(addresses[1]));
         this.isAwaken = true;
-        System.out.println(this + "Joining to form a ring of size " + Initializer.getAwakenNodesCount());
+        System.out.println(this + "Joining to form a ring of size " +
+                Initializer.getAwakenNodesCount() +
+                " (left: " + this.left + "- right: " + this.right + ")");
     }
 
     /**
@@ -225,11 +220,11 @@ public class Node implements EDProtocol {
      */
     private void onSwitchNeighborPacket(Packet packet) {
         if (packet.getContent() == "LEFT") {
-            System.out.println(this + "Switching left neighbor from " + this.left.mypid +" to " + packet.getSenderAddress());
-            this.left = addressToNode(packet.getSenderAddress());
+            System.out.println(this + "Switching left neighbor from " + this.left.getId() +" to " + packet.getSenderId());
+            this.left = Utils.addressToNode(packet.getSenderAddress());
         } else {
-            System.out.println(this + "Switching right neighbor from " + this.right.mypid +" to " + packet.getSenderAddress());
-            this.right = addressToNode(packet.getSenderAddress());
+            System.out.println(this + "Switching right neighbor from " + this.right.getId() +" to " + packet.getSenderId());
+            this.right = Utils.addressToNode(packet.getSenderAddress());
         }
     }
 
@@ -245,45 +240,45 @@ public class Node implements EDProtocol {
         this.send(this.right, packet);
     }
 
-    public void sendMessage(UUID target, String msg) {
-        this.route(new Packet(Type.Message, this.uuid, this.mypid, target, msg));
+    public void sendMessage(int targetAddress, String msg) {
+        this.route(new Packet(Type.Message, this.getId(), this.getAddress(), targetAddress, msg));
     }
 
-    public void route(Packet message) {
+    public void route(Packet packet) {
         if (!this.isAwaken()) throw new IllegalStateException("Node in idle state");
 
-        if (message.getTarget().compareTo(this.uuid) > 0) { // packet.target > this.id
+        if (packet.getTargetId() > this.getId()) { // packet.target > this.id
             // route to right node
-            if (message.getTarget().compareTo(this.right.getUUID()) < 0) {
+            if (packet.getTargetId() < this.right.getId()) {
                 // the destination node should be placed between us and the right node
                 // hence this node is missing, it may have left the ring
-                this.nodeNotFoundWhenRouting(message);
+                this.nodeNotFoundWhenRouting(packet);
             } else {
-                System.out.println("Routing packet to right: " + this.right.getUUID());
-                this.sendRight(message);
+                System.out.println(this + "Routing " + packet.getType() + " to right: " + this.right);
+                this.sendRight(packet);
             }
-        } else if (message.getTarget().compareTo(this.uuid) < 0) {
+        } else if (packet.getTargetId() < this.getId()) {
             // route to left node
-            if (message.getTarget().compareTo(this.left.getUUID()) > 0) {
+            if (packet.getTargetId() > this.left.getId()) {
                 // the destination node should be placed between us and the left node
                 // hence this node is missing, it may have left the ring
-                this.nodeNotFoundWhenRouting(message);
+                this.nodeNotFoundWhenRouting(packet);
             } else {
-                System.out.println("Routing packet to left: " + this.left.getUUID());
-                this.sendLeft(message);
+                System.out.println(this + "Routing " + packet.getType() + " to left: " + this.left);
+                this.sendLeft(packet);
             }
         } else {
-            this.handleRoutableMessage(message);
+            this.handleRoutableMessage(packet);
         }
     }
 
     private void nodeNotFoundWhenRouting(Packet message) {
-        if (message.getSender() == this.uuid) {
+        if (message.getSenderId() == this.getId()) {
             // no need to forward an error packet, we just notify the console
-            System.out.println("Node " + message.getTarget() + " not found");
+            System.out.println("Node " + message.getTargetId() + " not found");
         } else {
             // route a response to the sender, notifying the node is missing
-            this.route(new Packet(Type.UndeliverableRoutable, this.uuid, this.mypid, message.getSenderAddress(), "Node " + message.getTarget() + " not found"));
+            this.route(new Packet(Type.UndeliverableRoutable, this.getId(), this.address, message.getSenderAddress(), "Node " + message.getTargetId() + " not found"));
         }
     }
 
@@ -293,27 +288,32 @@ public class Node implements EDProtocol {
     }
 
     private void onMessage(Packet packet) {
-        System.out.println("Received a message from " + packet.getSender() + ": " + packet.getContent());
+        System.out.println(this + "Received a message from " + packet.getSenderId() + ": " + packet.getContent());
     }
 
     private void onUndeliverableRoutableMessage(Packet packet) {
         System.out.println("Was not able to deliver a message: " + packet.getContent());
     }
 
-    //retourne le noeud courant
     private peersim.core.Node getMyNode() {
-	    return Network.get(this.nodeId);
+	    return Network.get(this.address);
     }
 
-    private static Node addressToNode(int address) {
-        return (Node) Network.get(address).getProtocol(Initializer.getTransportPid());
+    public int getAddress() {
+        return address;
     }
 
-    public int getNodeId() {
-        return nodeId;
+    public int getId() { return id; }
+
+    public Node getLeft() {
+        return left;
+    }
+
+    public Node getRight() {
+        return right;
     }
 
     public String toString() {
-	    return ConsoleColors.BLUE + "[Node "+ this.nodeId + "] ";
+	    return ConsoleColors.BLUE + "[Node "+ this.getId() + "] ";
     }
 }

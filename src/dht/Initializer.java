@@ -6,22 +6,15 @@ import peersim.config.*;
 import java.util.Random;
 import java.util.stream.IntStream;
 
-/*
-  Module d'initialisation:
-  Fonctionnement:
-    pour chaque noeud, le module fait le lien entre la couche transport et la couche applicative
- */
 public class Initializer implements Control {
 
     private static int TRANSPORT_PID = -1;
 
     public Initializer(String prefix) {
-		//recuperation du pid de la couche applicative
 		this.TRANSPORT_PID = Configuration.getPid(prefix + ".transport");
     }
 
 	public static int getTransportPid() {
-		if (TRANSPORT_PID == -1) throw new IllegalStateException("DHT project not yet initialized");
 		return TRANSPORT_PID;
 	}
 
@@ -44,6 +37,10 @@ public class Initializer implements Control {
 		return false;
 	}
 
+	/**
+	 * Selectionne un noeud aléatoire dans les noeuds éveillés
+	 * @return node
+	 */
 	public static Node getRandomAwakenNode() {
 		Node[] nodes = IntStream.range(0, Network.size())
 				.mapToObj(Network::get)
@@ -54,6 +51,10 @@ public class Initializer implements Control {
 		return nodes[new Random().nextInt(nodes.length)];
 	}
 
+	/**
+	 * Retourne le nombre de noeud éveillés
+	 * @return int
+	 */
 	public static long getAwakenNodesCount() {
 		return IntStream.range(0, Network.size())
 				.mapToObj(Network::get)
@@ -63,6 +64,6 @@ public class Initializer implements Control {
 
 	@Override
 	public String toString() {
-		return ConsoleColors.PURPLE + "[Initialize] ";
+		return ConsoleColors.PURPLE + "[Initializer] ";
 	}
 }

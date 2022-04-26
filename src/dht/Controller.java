@@ -23,45 +23,62 @@ public class Controller implements Control {
         }
         this.steps.add(this::displayRing);
 
-        // Suppresion d'un noeud
+        // Déconnexion d'un noeud aléatoire
         this.steps.add(() -> disconnectRandomNode());
         this.steps.add(this::displayRing);
 
-        // send messages
-        this.steps.add(() -> sendMessageRandom("Hello world"));
-        this.steps.add(() -> sendMessageRandom("Hello universe"));
-        this.steps.add(() -> sendMessageRandom("Hello cosmos"));
+        // Envoie de plusieurs messages aléatoires
+        this.steps.add(() -> sendMessageRandom("Hey bro"));
+        this.steps.add(() -> sendMessageRandom("It's me"));
+        this.steps.add(() -> sendMessageRandom("Coucou"));
+
+        // Sauvegarde et récupération d'une donnée
+        int randomKey = (int)(Math.random()*(1000));
+        this.steps.add(() -> put(randomKey, "Les fleurs sont jolies"));
+        this.steps.add(() -> get(randomKey));
     }
 
     @Override
     public boolean execute() {
-        // skip execution if all action have been executed
         if (this.executedStep == this.steps.size()) return false;
 
-        // trigger the next action
         this.steps.get(this.executedStep).run();
         this.executedStep++;
 
         return false;
     }
 
+    /**
+     * Reveiller le noeud passé en parametre
+     * @param nodeIndex
+     */
     public void wakeUpNode(int nodeIndex) {
-        System.out.println(this + "Waking up node " + nodeIndex);
         Node node = (Node) Network.get(nodeIndex).getProtocol(Initializer.getTransportPid());
+        System.out.println(this + "Waking up node " + node.getId());
         node.awake(nodeIndex);
     }
 
+    /**
+     * Déconnecter un noeud aléatoire
+     */
     public void disconnectRandomNode() {
         Node randomNode = getRandomAwakenNode();
         this.disconnectNode(randomNode.getAddress());
     }
 
+    /**
+     * Deconnecter le noeud passé en parametre
+     * @param address
+     */
     public void disconnectNode(int address) {
         Node node = (Node) Network.get(address).getProtocol(Initializer.getTransportPid());
         System.out.println(this + "Disconnect node " + node.getId());
         node.leave();
     }
 
+    /**
+     * Afficher l'anneau créer par l'interconnexion de chaque noeud
+     */
     public void displayRing() {
         Node startNode = Initializer.getRandomAwakenNode();
         Node currentNode = startNode.getRight();
@@ -80,6 +97,10 @@ public class Controller implements Control {
         System.out.println(this + ConsoleColors.YELLOW_BOLD + "Final ring: " + idsString);
     }
 
+    /**
+     * Envoie d'un message d'un noeud aléatoire à un autre noeud aléatoire
+     * @param message
+     */
     public void sendMessageRandom(String message) {
         Node randomSender = getRandomAwakenNode();
         Node randomTarget = getRandomAwakenNode();
@@ -87,6 +108,29 @@ public class Controller implements Control {
         System.out.println(this + "Sending `" + message + "` from " + randomSender.getId() + " to " + randomTarget.getId());
 
         randomSender.sendMessage(randomTarget.getId(), message);
+    }
+
+    /**
+     * Sauvegarder d'une donnée a l'aide d'une clé
+     * @param key
+     * @param data
+     */
+    public void put(int key, String data) {
+        System.out.println(this + "Inserting key/data: " + key + "/" + data);
+
+        Node randomNode = getRandomAwakenNode();
+        randomNode.put(key, data);
+    }
+
+    /**
+     * Récupération de la donnée liée a la clé
+     * @param key
+     */
+    public void get(int key) {
+        System.out.println(this + "Get " + key + " from the DHT");
+
+        Node randomNode = getRandomAwakenNode();
+        randomNode.get(key).thenAccept(data -> System.out.println(this + "Data associate to " + key + " is '" + data + "'"));
     }
 
     @Override

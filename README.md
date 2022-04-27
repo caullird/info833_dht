@@ -1,4 +1,4 @@
-# info833_dht
+# 🔆 INFO833 - DHT
 
 Le but de ce projet est d'utiliser peersim, un simulateur de communication peer to peer, pour créer un DHT composé de différents nœuds.
 
